@@ -28,15 +28,19 @@ function useResizeObserver<T extends HTMLElement>(cb: (entry: DOMRectReadOnly) =
   return ref;
 }
 
-function useIntersection(ref: React.RefObject<Element>, rootMargin = "400px") {
+function useIntersection<T extends Element>(
+  ref: React.RefObject<T | null>,
+  rootMargin = "400px"
+) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    if (!ref.current) return;
+    const el = ref.current;
+    if (!el) return;
     const io = new IntersectionObserver(
       (entries) => entries.forEach((e) => setVisible(e.isIntersecting)),
       { root: null, rootMargin, threshold: 0 }
     );
-    io.observe(ref.current);
+    io.observe(el as Element);
     return () => io.disconnect();
   }, [ref, rootMargin]);
   return visible;

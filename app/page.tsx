@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { motion } from "framer-motion";
 
 /** pdf.js (browser-only) — worker'ı self-host ediyoruz: public/pdf.worker.min.mjs */
@@ -14,7 +20,9 @@ async function ensurePdfjs() {
 }
 
 /** Küçük yardımcılar */
-function useResizeObserver<T extends HTMLElement>(cb: (entry: DOMRectReadOnly) => void) {
+function useResizeObserver<T extends HTMLElement>(
+  cb: (entry: DOMRectReadOnly) => void
+) {
   const ref = useRef<T | null>(null);
   useEffect(() => {
     if (!ref.current) return;
@@ -28,21 +36,27 @@ function useResizeObserver<T extends HTMLElement>(cb: (entry: DOMRectReadOnly) =
   return ref;
 }
 
-function useIntersection<T extends Element>(
-  ref: React.RefObject<T | null>,
+function useIntersection(
+  ref: React.RefObject<Element | null> | React.MutableRefObject<Element | null>,
   rootMargin = "400px"
 ) {
   const [visible, setVisible] = useState(false);
+
   useEffect(() => {
-    const el = ref.current;
+    const el = ref.current; // null olabilir
     if (!el) return;
+
     const io = new IntersectionObserver(
-      (entries) => entries.forEach((e) => setVisible(e.isIntersecting)),
+      (entries) => {
+        for (const e of entries) setVisible(e.isIntersecting);
+      },
       { root: null, rootMargin, threshold: 0 }
     );
-    io.observe(el);
+
+    io.observe(el); // Element bekler
     return () => io.disconnect();
   }, [ref, rootMargin]);
+
   return visible;
 }
 
@@ -57,13 +71,16 @@ function PageCanvas({
   pdf: any;
   pageNumber: number;
   fitWidth: number; // container genişliği
-  zoom: number;     // 1.0 = normal
+  zoom: number; // 1.0 = normal
   dpr: number;
 }) {
   const holderRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const visible = useIntersection<HTMLDivElement>(holderRef);
-  const [pageSize, setPageSize] = useState<{ wCSS: number; hCSS: number }>({ wCSS: 0, hCSS: 0 });
+  const visible = useIntersection(holderRef);
+  const [pageSize, setPageSize] = useState<{ wCSS: number; hCSS: number }>({
+    wCSS: 0,
+    hCSS: 0,
+  });
 
   const renderPage = useCallback(async () => {
     if (!visible || !canvasRef.current) return;
@@ -92,7 +109,8 @@ function PageCanvas({
     setPageSize({ wCSS: Math.floor(vp.width), hCSS: Math.floor(vp.height) });
 
     const transform = [dpr, 0, 0, dpr, 0, 0] as any;
-    await page.render({ canvasContext: context, viewport: vp, transform }).promise;
+    await page.render({ canvasContext: context, viewport: vp, transform })
+      .promise;
   }, [pdf, pageNumber, fitWidth, zoom, dpr, visible]);
 
   useEffect(() => {
@@ -126,52 +144,67 @@ export default function PDFViewerPage() {
   });
   const [containerWidth, setContainerWidth] = useState<number>(900);
 
-  const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  const dpr =
+    typeof window !== "undefined"
+      ? Math.min(window.devicePixelRatio || 1, 2)
+      : 1;
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const handlePick = useCallback(() => inputRef.current?.click(), []);
 
-  const loadFile = useCallback(async (file: File) => {
-    if (!file) return;
-    // eski blob'u bırak
-    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    const localUrl = URL.createObjectURL(file);
-    setPdfUrl(localUrl);
+  const loadFile = useCallback(
+    async (file: File) => {
+      if (!file) return;
+      // eski blob'u bırak
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+      const localUrl = URL.createObjectURL(file);
+      setPdfUrl(localUrl);
 
-    setIsBusy(true);
-    setStatus("PDF yükleniyor…");
-    setFileName(file.name);
-    setPdfDoc(null);
-    setNumPages(0);
+      setIsBusy(true);
+      setStatus("PDF yükleniyor…");
+      setFileName(file.name);
+      setPdfDoc(null);
+      setNumPages(0);
 
-    try {
-      const pdfjsLib = await ensurePdfjs();
-      const buf = await file.arrayBuffer();
-      const task = pdfjsLib.getDocument({ data: buf });
-      const pdf = await task.promise;
-      setPdfDoc(pdf);
-      setNumPages(pdf.numPages);
-      setStatus(`Yüklendi: ${pdf.numPages} sayfa`);
-    } catch (e) {
-      console.error(e);
-      setStatus("Hata: PDF yüklenemedi.");
-    } finally {
-      setIsBusy(false);
-    }
-  }, [pdfUrl]);
+      try {
+        const pdfjsLib = await ensurePdfjs();
+        const buf = await file.arrayBuffer();
+        const task = pdfjsLib.getDocument({ data: buf });
+        const pdf = await task.promise;
+        setPdfDoc(pdf);
+        setNumPages(pdf.numPages);
+        setStatus(`Yüklendi: ${pdf.numPages} sayfa`);
+      } catch (e) {
+        console.error(e);
+        setStatus("Hata: PDF yüklenemedi.");
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [pdfUrl]
+  );
 
-  const onInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) loadFile(f);
-  }, [loadFile]);
+  const onInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      if (f) loadFile(f);
+    },
+    [loadFile]
+  );
 
-  const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const f = e.dataTransfer.files?.[0];
-    if (f && f.type === "application/pdf") loadFile(f);
-  }, [loadFile]);
+  const onDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const f = e.dataTransfer.files?.[0];
+      if (f && f.type === "application/pdf") loadFile(f);
+    },
+    [loadFile]
+  );
 
-  const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => e.preventDefault(), []);
+  const onDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => e.preventDefault(),
+    []
+  );
 
   const handleClear = useCallback(() => {
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
@@ -182,17 +215,26 @@ export default function PDFViewerPage() {
     setStatus("Temizlendi. Yeni bir PDF yükleyin.");
   }, [pdfUrl]);
 
-  const zoomOut = useCallback(() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2))), []);
-  const zoomIn  = useCallback(() => setZoom((z) => Math.min(3,   +(z + 0.1).toFixed(2))), []);
+  const zoomOut = useCallback(
+    () => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2))),
+    []
+  );
+  const zoomIn = useCallback(
+    () => setZoom((z) => Math.min(3, +(z + 0.1).toFixed(2))),
+    []
+  );
   const fitWidth = useCallback(() => setZoom(1), []);
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
       <div className="mx-auto max-w-6xl px-4 py-10" ref={containerRef}>
         <header className="mb-6">
-          <h1 className="text-3xl font-bold">PDF Görüntüleyici (Siteyle Bütünleşik)</h1>
+          <h1 className="text-3xl font-bold">
+            PDF Görüntüleyici (Siteyle Bütünleşik)
+          </h1>
           <p className="mt-2 text-sm text-gray-600">
-            PDF sayfaları, canvas olarak sitenin içinde render edilir. Kaydırdıkça sayfalar yüklenir.
+            PDF sayfaları, canvas olarak sitenin içinde render edilir.
+            Kaydırdıkça sayfalar yüklenir.
           </p>
         </header>
 
@@ -210,7 +252,9 @@ export default function PDFViewerPage() {
             className="hidden"
           />
           <motion.div initial={{ opacity: 0.9 }} animate={{ opacity: 1 }}>
-            <p className="mb-3 text-sm text-gray-600">PDF'yi buraya sürükleyip bırakın</p>
+            <p className="mb-3 text-sm text-gray-600">
+              PDF'yi buraya sürükleyip bırakın
+            </p>
             <button
               onClick={handlePick}
               className="rounded-2xl bg-black px-4 py-2 text-white shadow hover:opacity-90"
@@ -231,12 +275,34 @@ export default function PDFViewerPage() {
         {pdfDoc && (
           <div className="mt-6 flex flex-wrap items-center gap-2">
             <span className="text-sm text-gray-600">Görünüm:</span>
-            <button onClick={zoomOut} className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50">–</button>
-            <button onClick={fitWidth} className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50">Fit Width</button>
-            <button onClick={zoomIn} className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50">+</button>
-            <span className="ml-2 text-sm text-gray-500">Zoom: {(zoom*100).toFixed(0)}%</span>
-            <div className="ml-auto text-sm text-gray-500">Sayfa: {numPages}</div>
-            <button onClick={handleClear} className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50">
+            <button
+              onClick={zoomOut}
+              className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50"
+            >
+              –
+            </button>
+            <button
+              onClick={fitWidth}
+              className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50"
+            >
+              Fit Width
+            </button>
+            <button
+              onClick={zoomIn}
+              className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50"
+            >
+              +
+            </button>
+            <span className="ml-2 text-sm text-gray-500">
+              Zoom: {(zoom * 100).toFixed(0)}%
+            </span>
+            <div className="ml-auto text-sm text-gray-500">
+              Sayfa: {numPages}
+            </div>
+            <button
+              onClick={handleClear}
+              className="rounded-xl bg-white px-3 py-2 shadow ring-1 ring-gray-200 hover:bg-gray-50"
+            >
               Temizle
             </button>
           </div>

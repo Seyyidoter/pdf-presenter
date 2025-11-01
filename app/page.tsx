@@ -40,7 +40,7 @@ function useIntersection<T extends Element>(
       (entries) => entries.forEach((e) => setVisible(e.isIntersecting)),
       { root: null, rootMargin, threshold: 0 }
     );
-    io.observe(el as Element);
+    io.observe(el);
     return () => io.disconnect();
   }, [ref, rootMargin]);
   return visible;

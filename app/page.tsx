@@ -62,7 +62,7 @@ function PageCanvas({
 }) {
   const holderRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const visible = useIntersection(holderRef);
+  const visible = useIntersection<HTMLDivElement>(holderRef);
   const [pageSize, setPageSize] = useState<{ wCSS: number; hCSS: number }>({ wCSS: 0, hCSS: 0 });
 
   const renderPage = useCallback(async () => {
